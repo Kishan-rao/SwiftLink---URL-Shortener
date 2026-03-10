@@ -47,7 +47,7 @@ class UrlShortenerFullFlowTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("E2E: Shorten URL, Redirect (302), and verify Cache Counts")
     void shouldShortenUrlAndTrackClicksAsynchronously() {
-        String longUrl = "https://www.github.com/williamnogueira";
+        String longUrl = "https://www.github.com/Kishan-rao";
 
         // 1. Create
         var result = client.post()

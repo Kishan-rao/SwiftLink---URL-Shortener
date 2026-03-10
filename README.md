@@ -96,7 +96,7 @@ The project includes a fully containerized environment (App, Redis, DynamoDB Loc
 
 ```bash
 # Clone the repository
-git clone https://github.com/Kishan-rao/SwiftLink---URL-Shortener
+git clone https://github.com/Kishan-rao/SwiftLink---URL-Shortener.git
 
 # Start the stack
 docker compose up -d --build
