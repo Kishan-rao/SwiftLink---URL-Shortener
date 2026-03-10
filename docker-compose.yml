@@ -9,6 +9,10 @@ services:
       - SPRING_DATA_REDIS_HOST=redis
       - DYNAMO_ENDPOINT=http://dynamodb-local:8000
       - JWT_SECRET=ChangeThisToAStrongRandomSecretInProduction_AtLeast32Chars
+      - AWS_REGION=ap-south-1
+      - ACCESS_KEY=local
+      - SECRET_KEY=local
+      - APP_SALT=local_salt_value
     depends_on:
       - dynamodb-local
       - redis
