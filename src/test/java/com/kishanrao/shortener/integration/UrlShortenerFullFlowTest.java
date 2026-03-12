@@ -6,7 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.test.web.servlet.client.RestTestClient;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.services.dynamodb.model.ResourceInUseException;
@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class UrlShortenerFullFlowTest extends AbstractIntegrationTest {
 
     @Autowired
-    private RestTestClient client;
+    private WebTestClient client;
 
     @Autowired
     private DynamoDbEnhancedClient enhancedClient;

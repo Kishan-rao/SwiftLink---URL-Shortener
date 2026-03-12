@@ -75,7 +75,7 @@ class UrlSyncScheduler {
     }
 
     private int dynamicBatchSize() {
-        var size = redisTemplate.opsForSet().size(DIRTY_SET_KEY);
+        Long size = redisTemplate.opsForSet().size(DIRTY_SET_KEY);
         if (isNull(size) || size < SMALL_SIZE) return MIN_BATCH;
         if (size < LARGE_SIZE) return MID_BATCH;
         return MAX_BATCH;
