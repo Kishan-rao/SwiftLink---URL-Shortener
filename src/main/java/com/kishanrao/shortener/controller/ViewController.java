@@ -16,4 +16,14 @@ public class ViewController {
     public String stats(@PathVariable String code) {
         return "stats";
     }
+
+    @GetMapping("/auth")
+    public String auth() {
+        return "auth";
+    }
+
+    @GetMapping("/dashboard")
+    public String dashboard() {
+        return "dashboard";
+    }
 }

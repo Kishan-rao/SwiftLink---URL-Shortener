@@ -15,11 +15,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Objects.requireNonNullElse;
 import static org.springframework.util.StringUtils.hasText;
 import static com.kishanrao.shortener.infra.constants.RedisConstants.*;
 import static com.kishanrao.shortener.infra.utils.UrlSanitizer.sanitizeUrl;
+
 
 @Service
 @RequiredArgsConstructor
@@ -64,8 +66,12 @@ public class UrlService {
         if (expiresAt != null) {
             Duration remainingTtl = Duration.between(Instant.now(), expiresAt);
             redisTemplate.opsForValue().set(getUrlCacheKey(code), finalUrl, remainingTtl);
+            // BUG FIX #1: store the expiry epoch so cache-hit path can validate it
+            redisTemplate.opsForValue().set(
+                    getExpiryKey(code), String.valueOf(expiresAt.getEpochSecond()), remainingTtl);
         } else {
             redisTemplate.opsForValue().set(getUrlCacheKey(code), finalUrl, CACHE_TTL);
+            // No expiry — no companion key needed
         }
 
         log.info("URL shortened. Code: [{}], Expires: [{}]", code, expiresAt);
@@ -78,7 +84,17 @@ public class UrlService {
 
         if (hasText(cachedUrl)) {
             log.debug("Cache HIT for code: [{}]", code);
-            // Check expiry from DB only if not stored in another cache key
+            // BUG FIX #1: validate expiry even on a cache hit using the companion expiry key
+            String expiryEpoch = redisTemplate.opsForValue().get(getExpiryKey(code));
+            if (hasText(expiryEpoch)) {
+                Instant expiresAt = Instant.ofEpochSecond(Long.parseLong(expiryEpoch));
+                if (Instant.now().isAfter(expiresAt)) {
+                    log.info("Cache HIT but link expired for code: [{}]. Evicting.", code);
+                    redisTemplate.delete(cacheKey);
+                    redisTemplate.delete(getExpiryKey(code));
+                    throw new UrlNotFoundException("Short URL has expired: " + code);
+                }
+            }
             return cachedUrl;
         }
 
@@ -89,7 +105,15 @@ public class UrlService {
             throw new UrlNotFoundException("Short URL has expired: " + code);
         }
 
-        redisTemplate.opsForValue().set(cacheKey, entity.getOriginalUrl(), CACHE_TTL);
+        // Re-populate cache, and restore the expiry companion key if the link has a TTL
+        if (entity.getExpiresAt() != null) {
+            Duration remaining = Duration.between(Instant.now(), entity.getExpiresAt());
+            redisTemplate.opsForValue().set(cacheKey, entity.getOriginalUrl(), remaining);
+            redisTemplate.opsForValue().set(
+                    getExpiryKey(code), String.valueOf(entity.getExpiresAt().getEpochSecond()), remaining);
+        } else {
+            redisTemplate.opsForValue().set(cacheKey, entity.getOriginalUrl(), CACHE_TTL);
+        }
         return entity.getOriginalUrl();
     }
 
@@ -121,6 +145,7 @@ public class UrlService {
         urlRepository.delete(code);
         redisTemplate.delete(getUrlCacheKey(code));
         redisTemplate.delete(getClicksKey(code));
+        redisTemplate.delete(getExpiryKey(code)); // BUG FIX #1: clean up companion expiry key
         log.info("Deleted link [{}] by owner [{}]", code, ownerId);
     }
 

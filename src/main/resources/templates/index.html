@@ -27,6 +27,22 @@
 
 <body class="bg-gray-900 text-gray-100 font-sans min-h-screen flex flex-col items-center justify-center p-4">
 
+    <nav class="absolute top-0 left-0 right-0 p-6 flex justify-between items-center max-w-6xl mx-auto w-full">
+        <div class="flex items-center space-x-2">
+            <div class="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold">S</span>
+            </div>
+            <span class="text-xl font-bold tracking-tight">SwiftLink</span>
+        </div>
+        <div id="navAuth" class="flex items-center space-x-6">
+            <a href="/auth" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition shadow-lg">Sign In</a>
+        </div>
+        <div id="navUser" class="hidden flex items-center space-x-6">
+            <a href="/dashboard" class="text-gray-400 hover:text-white transition text-sm font-medium">Dashboard</a>
+            <button onclick="logout()" class="text-gray-400 hover:text-white transition text-sm font-medium">Logout</button>
+        </div>
+    </nav>
+
     <div class="w-full max-w-lg bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-700">
 
         <div class="text-center mb-8">
@@ -101,6 +117,22 @@
         const statsLink = document.getElementById('statsLink');
         const copyFeedback = document.getElementById('copyFeedback');
 
+        // Auth state handling
+        const token = localStorage.getItem('token');
+        const navAuth = document.getElementById('navAuth');
+        const navUser = document.getElementById('navUser');
+
+        if (token) {
+            navAuth.classList.add('hidden');
+            navUser.classList.remove('hidden');
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('userEmail');
+            location.reload();
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -115,7 +147,10 @@
             try {
                 const response = await fetch('/api/urls', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
                     body: JSON.stringify({ url: originalUrl })
                 });
 

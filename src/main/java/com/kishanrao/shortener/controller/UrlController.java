@@ -60,7 +60,9 @@ public class UrlController {
                     @ApiResponse(responseCode = "302", description = "Redirect to original URL"),
                     @ApiResponse(responseCode = "404", description = "Code not found or expired")
             })
-    @GetMapping("/{code}")
+    // BUG FIX #2: Changed from /{code} to /s/{code} to avoid shadowing static view routes like
+    // /auth, /dashboard, etc. Short links are now accessed via e.g. http://localhost:8080/s/abc123
+    @GetMapping("/s/{code}")
     public RedirectView redirect(@PathVariable String code) {
         var originalUrl = urlService.getOriginalUrl(code);
         urlService.incrementClickCount(code);

@@ -15,6 +15,7 @@ import static org.springframework.util.CollectionUtils.isEmpty;
 import static org.springframework.util.StringUtils.hasText;
 import static com.kishanrao.shortener.infra.constants.RedisConstants.DIRTY_SET_KEY;
 import static com.kishanrao.shortener.infra.constants.RedisConstants.getClicksKey;
+import static com.kishanrao.shortener.infra.constants.RedisConstants.getSyncingKey;
 
 /**
  * Background scheduler that drains the Redis dirty set and persists
@@ -56,20 +57,35 @@ class UrlSyncScheduler {
     }
 
     private void processSingleCode(String code) {
-        String key = getClicksKey(code);
-        String oldValue = redisTemplate.opsForValue().getAndSet(key, "0");
+        String clicksKey   = getClicksKey(code);
+        String syncingKey  = getSyncingKey(code);
 
-        if (!hasText(oldValue)) return;
+        // BUG FIX #3: Rename atomically to a "syncing" key before touching DynamoDB.
+        // Any new clicks that arrive after this point land in the main key and will
+        // be picked up by the next scheduler run — no data loss on crash.
+        Boolean renamed = redisTemplate.rename(clicksKey, syncingKey);
+        if (Boolean.FALSE.equals(renamed)) return; // key didn't exist, nothing to sync
+
+        String oldValue = redisTemplate.opsForValue().get(syncingKey);
+        if (!hasText(oldValue)) {
+            redisTemplate.delete(syncingKey);
+            return;
+        }
 
         long clicks = Long.parseLong(oldValue);
-        if (clicks <= 0) return;
+        if (clicks <= 0) {
+            redisTemplate.delete(syncingKey);
+            return;
+        }
 
         try {
             urlRepository.updateClickCount(code, clicks);
+            redisTemplate.delete(syncingKey); // only deleted after a confirmed DB write
         } catch (Exception e) {
-            // Return clicks to Redis on failure so they're not lost
-            redisTemplate.opsForValue().increment(key, clicks);
+            // Merge syncing clicks back into the main key so they aren't lost
+            redisTemplate.opsForValue().increment(clicksKey, clicks);
             redisTemplate.opsForSet().add(DIRTY_SET_KEY, code);
+            redisTemplate.delete(syncingKey);
             log.error("Failed to sync clicks for [{}], returned {} clicks to Redis", code, clicks, e);
         }
     }

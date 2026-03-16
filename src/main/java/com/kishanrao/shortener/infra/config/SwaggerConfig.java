@@ -24,8 +24,8 @@ public class SwaggerConfig {
         var devServer = new Server().description("Developer server");
 
         var contact = new Contact()
-                .name("Kishan Rao")
-                .url("https://github.com/kishanrao");
+                .name("Kishan-Rao")
+                .url("https://github.com/Kishan-rao");
 
         var info = new Info()
                 .title("SwiftLink API")

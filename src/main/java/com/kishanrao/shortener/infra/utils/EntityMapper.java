@@ -16,7 +16,7 @@ public final class EntityMapper {
 
     public UrlDto toDto(UrlEntity entity) {
         return UrlDto.builder()
-                .shortUrl(baseUrl + entity.getCode())
+                .shortUrl(baseUrl + "s/" + entity.getCode())  // BUG FIX #2: /s/ prefix matches new redirect route
                 .originalUrl(entity.getOriginalUrl())
                 .clicks(entity.getClicks())
                 .createdAt(entity.getCreatedAt())

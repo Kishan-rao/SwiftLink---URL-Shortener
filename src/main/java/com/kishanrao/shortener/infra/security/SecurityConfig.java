@@ -29,9 +29,13 @@ public class SecurityConfig {
                         // Public endpoints
                         .requestMatchers(HttpMethod.POST, "/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/urls").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/urls/{code}", "/api/urls/{code}/qr").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/{code}").permitAll()
-                        .requestMatchers("/", "/index.html", "/error", "/css/**", "/js/**", "/*.png", "/*.ico").permitAll()
+                        // URL metadata + QR should be public for stats/embedded use
+                        .requestMatchers(HttpMethod.GET, "/api/urls/*", "/api/urls/*/qr").permitAll()
+                        // Public redirect and stats pages
+                        .requestMatchers(HttpMethod.GET, "/{code}", "/stats/**").permitAll()
+                        // Static + index + pages
+                        .requestMatchers("/", "/index.html", "/auth", "/dashboard", "/error", "/css/**", "/js/**", "/*.png", "/*.ico").permitAll()
+                        // Docs & actuator
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/actuator/**").permitAll()
                         // Everything else requires auth
                         .anyRequest().authenticated()

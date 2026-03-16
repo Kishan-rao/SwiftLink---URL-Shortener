@@ -144,6 +144,8 @@ To run the unit and integration tests (using TestContainers):
 ./mvnw test
 ```
 
+**Windows (Docker Desktop):** To run integration tests, enable **Settings → General → "Expose daemon on tcp://localhost:2375 without TLS"**. If this is off, integration tests are skipped and only unit tests run (build still passes).
+
 ---
 
 ## 📄 License

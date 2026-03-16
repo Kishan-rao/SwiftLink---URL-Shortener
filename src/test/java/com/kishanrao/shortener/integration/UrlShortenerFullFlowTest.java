@@ -17,6 +17,7 @@ import static java.util.Objects.nonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Integration: URL Shortener Full Lifecycle")
+@EnabledIfDockerAvailable
 class UrlShortenerFullFlowTest extends AbstractIntegrationTest {
 
     @Autowired
