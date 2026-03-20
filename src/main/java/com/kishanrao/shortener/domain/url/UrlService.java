@@ -17,9 +17,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
-import static java.util.Objects.requireNonNullElse;
 import static org.springframework.util.StringUtils.hasText;
 import static com.kishanrao.shortener.infra.constants.RedisConstants.*;
 import static com.kishanrao.shortener.infra.utils.UrlSanitizer.sanitizeUrl;
