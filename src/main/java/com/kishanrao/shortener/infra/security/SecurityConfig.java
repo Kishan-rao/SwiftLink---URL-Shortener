@@ -34,7 +34,7 @@ public class SecurityConfig {
                         // Public redirect and stats pages - BUG FIX #2: Changed from /{code} to /s/{code}
                         .requestMatchers(HttpMethod.GET, "/s/*", "/stats/**").permitAll()
                         // Static + index + pages
-                        .requestMatchers("/", "/index.html", "/auth", "/dashboard", "/error", "/css/**", "/js/**", "/*.png", "/*.ico").permitAll()
+                        .requestMatchers("/", "/index.html", "/auth", "/login", "/shorten", "/dashboard", "/error", "/css/**", "/js/**", "/*.png", "/*.ico").permitAll()
                         // Docs & actuator
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/actuator/**").permitAll()
                         // Everything else requires auth
