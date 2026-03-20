@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import com.kishanrao.shortener.domain.url.CreateUrlRequest;
 import com.kishanrao.shortener.domain.url.UrlDto;
 import com.kishanrao.shortener.domain.url.UrlService;
@@ -51,7 +52,7 @@ public class UrlController {
                                          HttpServletRequest httpRequest) {
         enforceRateLimit(httpRequest);
         String ownerId = auth != null ? auth.getName() : null;
-        var urlDto = urlService.create(request, ownerId);
+        var urlDto = toPublicDto(urlService.create(request, ownerId), httpRequest);
         return ResponseEntity.created(URI.create(urlDto.shortUrl())).body(urlDto);
     }
 
@@ -71,14 +72,16 @@ public class UrlController {
 
     @Operation(summary = "Get URL metadata (clicks, creation date, expiry)")
     @GetMapping("/api/urls/{code}")
-    public ResponseEntity<UrlDto> metadata(@PathVariable String code) {
-        return ResponseEntity.ok(urlService.getMetadata(code));
+    public ResponseEntity<UrlDto> metadata(@PathVariable String code, HttpServletRequest request) {
+        return ResponseEntity.ok(toPublicDto(urlService.getMetadata(code), request));
     }
 
     @Operation(summary = "List all URLs created by the authenticated user")
     @GetMapping("/api/urls/my")
-    public ResponseEntity<List<UrlDto>> myLinks(Authentication auth) {
-        return ResponseEntity.ok(urlService.getMyLinks(auth.getName()));
+    public ResponseEntity<List<UrlDto>> myLinks(Authentication auth, HttpServletRequest request) {
+        return ResponseEntity.ok(urlService.getMyLinks(auth.getName()).stream()
+                .map(dto -> toPublicDto(dto, request))
+                .toList());
     }
 
     @Operation(summary = "Delete a URL you own")
@@ -90,9 +93,9 @@ public class UrlController {
 
     @Operation(summary = "Generate a QR code PNG for the given short URL code")
     @GetMapping(value = "/api/urls/{code}/qr", produces = MediaType.IMAGE_PNG_VALUE)
-    public ResponseEntity<byte[]> qrCode(@PathVariable String code) {
+    public ResponseEntity<byte[]> qrCode(@PathVariable String code, HttpServletRequest request) {
         // Resolve the full short URL to embed in the QR
-        var meta = urlService.getMetadata(code);
+        var meta = toPublicDto(urlService.getMetadata(code), request);
         byte[] qr = qrCodeService.generateQrCode(meta.shortUrl());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + code + ".png\"")
@@ -115,5 +118,30 @@ public class UrlController {
             return xff.split(",")[0].trim();
         }
         return request.getRemoteAddr();
+    }
+
+    private UrlDto toPublicDto(UrlDto dto, HttpServletRequest request) {
+        String code = extractCode(dto.shortUrl());
+        String publicUrl = ServletUriComponentsBuilder.fromRequestUri(request)
+                .replacePath("/s/{code}")
+                .replaceQuery(null)
+                .buildAndExpand(code)
+                .toUriString();
+        return UrlDto.builder()
+                .shortUrl(publicUrl)
+                .originalUrl(dto.originalUrl())
+                .clicks(dto.clicks())
+                .createdAt(dto.createdAt())
+                .expiresAt(dto.expiresAt())
+                .alias(dto.alias())
+                .build();
+    }
+
+    private String extractCode(String shortUrl) {
+        int lastSlash = shortUrl.lastIndexOf('/');
+        if (lastSlash < 0 || lastSlash == shortUrl.length() - 1) {
+            throw new IllegalStateException("Unable to extract short code from URL: " + shortUrl);
+        }
+        return shortUrl.substring(lastSlash + 1);
     }
 }
