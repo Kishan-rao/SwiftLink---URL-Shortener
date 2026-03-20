@@ -3,12 +3,18 @@ package com.kishanrao.shortener.controller;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.servlet.view.RedirectView;
 
 @Controller
 public class ViewController {
 
     @GetMapping("/")
-    public String index() {
+    public RedirectView home() {
+        return new RedirectView("/auth");
+    }
+
+    @GetMapping("/shorten")
+    public String shorten() {
         return "index";
     }
 
@@ -17,7 +23,7 @@ public class ViewController {
         return "stats";
     }
 
-    @GetMapping("/auth")
+    @GetMapping({"/auth", "/login"})
     public String auth() {
         return "auth";
     }
