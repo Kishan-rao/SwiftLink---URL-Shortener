@@ -133,6 +133,27 @@
             location.reload();
         }
 
+        function extractCodeFromShortUrl(shortUrl) {
+            if (!shortUrl) {
+                throw new Error('Short URL was not returned by the server');
+            }
+
+            const trimmed = shortUrl.trim();
+            const segments = trimmed.split('/').filter(segment => segment.length > 0);
+            const code = segments.at(-1);
+
+            if (!code || code === 's') {
+                throw new Error(`Unable to determine short code from URL: ${shortUrl}`);
+            }
+
+            return code;
+        }
+
+        function buildPublicShortUrl(shortUrl) {
+            const code = extractCodeFromShortUrl(shortUrl);
+            return `${window.location.origin}/s/${code}`;
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -166,13 +187,11 @@
                 }
 
                 const data = await response.json();
+                const publicShortUrl = buildPublicShortUrl(data.shortUrl);
+                const code = extractCodeFromShortUrl(data.shortUrl);
 
-                shortLink.href = data.shortUrl;
-                shortLink.textContent = data.shortUrl;
-
-                const urlObj = new URL(data.shortUrl);
-                const pathSegments = urlObj.pathname.split('/');
-                const code = pathSegments.findLast(segment => segment.length > 0);
+                shortLink.href = publicShortUrl;
+                shortLink.textContent = publicShortUrl;
 
                 statsLink.href = `/stats/${code}`;
 

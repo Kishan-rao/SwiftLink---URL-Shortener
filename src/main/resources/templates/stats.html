@@ -177,6 +177,24 @@
             return "Just now";
         };
 
+        const buildPublicShortUrl = (shortUrl, code) => {
+            const trimmed = shortUrl?.trim();
+            if (!trimmed) {
+                return `${window.location.origin}/s/${code}`;
+            }
+
+            try {
+                const parsed = new URL(trimmed);
+                if (parsed.host) {
+                    return trimmed;
+                }
+            } catch (_) {
+                // Fall back to the current public origin when the backend returns a malformed URL.
+            }
+
+            return `${window.location.origin}/s/${code}`;
+        };
+
         const setupCopyButton = () => {
             const copyBtn = document.getElementById('copyBtn');
             const feedback = document.getElementById('copyFeedback');
@@ -212,7 +230,7 @@
 
                 originalLink.href = data.originalUrl;
                 originalLink.textContent = data.originalUrl;
-                shortLinkDisplay.textContent = data.shortUrl;
+                shortLinkDisplay.textContent = buildPublicShortUrl(data.shortUrl, code);
                 clickCount.textContent = data.clicks;
 
                 const date = new Date(data.createdAt);
