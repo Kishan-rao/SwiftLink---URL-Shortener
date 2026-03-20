@@ -50,12 +50,10 @@ class UrlShortenerFullFlowTest extends AbstractIntegrationTest {
     void shouldShortenUrlAndTrackClicksAsynchronously() {
         String longUrl = "https://www.github.com/Kishan-rao";
 
-        // 1. Create
+        // 1. Create short URL
         var result = client.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/api/shorten")
-                        .queryParam("url", longUrl)
-                        .build())
+                .uri("/api/urls")
+                .bodyValue(new CreateUrlRequestTest(longUrl, null, null))
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody(UrlDto.class)
@@ -67,18 +65,18 @@ class UrlShortenerFullFlowTest extends AbstractIntegrationTest {
 
         String shortCode = result.shortUrl().substring(result.shortUrl().lastIndexOf("/") + 1);
 
-        // 2. Click 5 times
+        // 2. Click 5 times (redirects)
         for (int i = 0; i < 5; i++) {
             client.get()
-                    .uri("/" + shortCode)
+                    .uri("/s/" + shortCode)
                     .exchange()
                     .expectStatus().isFound()
                     .expectHeader().value("Location", loc -> assertThat(loc).isEqualTo(longUrl));
         }
 
-        // 3. Verify Metadata
+        // 3. Verify click count in metadata
         var stats = client.get()
-                .uri("/api/data/" + shortCode)
+                .uri("/api/urls/" + shortCode)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(UrlDto.class)
@@ -95,10 +93,8 @@ class UrlShortenerFullFlowTest extends AbstractIntegrationTest {
         String rawUrl = "google.com"; // User forgot https://
 
         var result = client.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/api/shorten")
-                        .queryParam("url", rawUrl)
-                        .build())
+                .uri("/api/urls")
+                .bodyValue(new CreateUrlRequestTest(rawUrl, null, null))
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody(UrlDto.class)
@@ -113,10 +109,8 @@ class UrlShortenerFullFlowTest extends AbstractIntegrationTest {
     @DisplayName("Validation: Reject invalid URL formats")
     void shouldValidateInvalidUrl() {
         client.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/api/shorten")
-                        .queryParam("url", "not-a-url")
-                        .build())
+                .uri("/api/urls")
+                .bodyValue(new CreateUrlRequestTest("not-a-url", null, null))
                 .exchange()
                 .expectStatus().isBadRequest();
     }
@@ -126,14 +120,17 @@ class UrlShortenerFullFlowTest extends AbstractIntegrationTest {
     void shouldReturn404ForUnknownCode() {
         // 1. Redirect Endpoint
         client.get()
-                .uri("/NON_EXISTENT")
+                .uri("/s/NON_EXISTENT")
                 .exchange()
                 .expectStatus().isNotFound();
 
         // 2. Metadata Endpoint
         client.get()
-                .uri("/api/data/NON_EXISTENT")
+                .uri("/api/urls/NON_EXISTENT")
                 .exchange()
                 .expectStatus().isNotFound();
     }
+
+    // Helper record for test request body
+    private record CreateUrlRequestTest(String url, String alias, Integer ttlHours) {}
 }

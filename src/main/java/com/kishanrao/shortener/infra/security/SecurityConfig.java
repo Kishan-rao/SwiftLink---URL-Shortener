@@ -31,8 +31,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/urls").permitAll()
                         // URL metadata + QR should be public for stats/embedded use
                         .requestMatchers(HttpMethod.GET, "/api/urls/*", "/api/urls/*/qr").permitAll()
-                        // Public redirect and stats pages
-                        .requestMatchers(HttpMethod.GET, "/{code}", "/stats/**").permitAll()
+                        // Public redirect and stats pages - BUG FIX #2: Changed from /{code} to /s/{code}
+                        .requestMatchers(HttpMethod.GET, "/s/*", "/stats/**").permitAll()
                         // Static + index + pages
                         .requestMatchers("/", "/index.html", "/auth", "/dashboard", "/error", "/css/**", "/js/**", "/*.png", "/*.ico").permitAll()
                         // Docs & actuator

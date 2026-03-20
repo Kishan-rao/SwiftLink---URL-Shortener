@@ -4,6 +4,8 @@ import io.micrometer.core.annotation.Counted;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import com.kishanrao.shortener.infra.IdGenerator;
@@ -14,8 +16,8 @@ import com.kishanrao.shortener.infra.utils.EntityMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 import static java.util.Objects.requireNonNullElse;
 import static org.springframework.util.StringUtils.hasText;
@@ -37,16 +39,25 @@ public class UrlService {
 
     @Counted(value = "business.urls.created", description = "Number of Short URLs successfully created")
     public UrlDto create(CreateUrlRequest request, String ownerId) {
-        log.info("Shortening URL: [{}] for owner: [{}]", request.url(), ownerId);
+        Objects.requireNonNull(request, "CreateUrlRequest cannot be null");
+        String rawUrl = Objects.requireNonNull(request.url(), "URL cannot be null").trim();
 
-        String finalUrl = sanitizeUrl(request.url());
+        if (request.alias() != null && request.alias().isBlank()) {
+            throw new IllegalArgumentException("Custom alias must not be blank");
+        }
+        if (request.ttlHours() != null && request.ttlHours() <= 0) {
+            throw new IllegalArgumentException("TTL must be positive hours or null for no expiry");
+        }
+
+        log.info("Shortening URL: [{}] for owner: [{}]", rawUrl, ownerId);
+
+        String finalUrl = sanitizeUrl(rawUrl);
 
         // Determine short code: custom alias or generated
         String code = resolveCode(request.alias());
 
-        Instant expiresAt = (request.ttlHours() != null)
-                ? Instant.now().plus(Duration.ofHours(request.ttlHours()))
-                : null;
+        Instant now = Instant.now();
+        Instant expiresAt = request.ttlHours() != null ? now.plus(Duration.ofHours(request.ttlHours())) : null;
 
         var entity = UrlEntity.builder()
                 .code(code)
@@ -64,7 +75,10 @@ public class UrlService {
 
         // Cache with TTL awareness
         if (expiresAt != null) {
-            Duration remainingTtl = Duration.between(Instant.now(), expiresAt);
+            Duration remainingTtl = Duration.between(now, expiresAt);
+            if (remainingTtl.isNegative() || remainingTtl.isZero()) {
+                throw new IllegalStateException("Expiry hour computation resulted in non-positive TTL");
+            }
             redisTemplate.opsForValue().set(getUrlCacheKey(code), finalUrl, remainingTtl);
             // BUG FIX #1: store the expiry epoch so cache-hit path can validate it
             redisTemplate.opsForValue().set(
@@ -78,7 +92,8 @@ public class UrlService {
         return mapper.toDto(entity);
     }
 
-    public String getOriginalUrl(String code) {
+    public String getOriginalUrl(@NonNull String code) {
+        Objects.requireNonNull(code, "code cannot be null");
         String cacheKey = getUrlCacheKey(code);
         var cachedUrl = redisTemplate.opsForValue().get(cacheKey);
 
@@ -87,12 +102,17 @@ public class UrlService {
             // BUG FIX #1: validate expiry even on a cache hit using the companion expiry key
             String expiryEpoch = redisTemplate.opsForValue().get(getExpiryKey(code));
             if (hasText(expiryEpoch)) {
-                Instant expiresAt = Instant.ofEpochSecond(Long.parseLong(expiryEpoch));
-                if (Instant.now().isAfter(expiresAt)) {
-                    log.info("Cache HIT but link expired for code: [{}]. Evicting.", code);
-                    redisTemplate.delete(cacheKey);
+                try {
+                    Instant expiresAt = Instant.ofEpochSecond(Long.parseLong(expiryEpoch));
+                    if (Instant.now().isAfter(expiresAt)) {
+                        log.info("Cache HIT but link expired for code: [{}]. Evicting.", code);
+                        redisTemplate.delete(cacheKey);
+                        redisTemplate.delete(getExpiryKey(code));
+                        throw new UrlNotFoundException("Short URL has expired: " + code);
+                    }
+                } catch (NumberFormatException ex) {
+                    log.warn("Invalid expiry epoch in Redis for code [{}]: {}", code, expiryEpoch, ex);
                     redisTemplate.delete(getExpiryKey(code));
-                    throw new UrlNotFoundException("Short URL has expired: " + code);
                 }
             }
             return cachedUrl;
@@ -117,31 +137,57 @@ public class UrlService {
         return entity.getOriginalUrl();
     }
 
-    public UrlDto getMetadata(String code) {
+    public UrlDto getMetadata(@NonNull String code) {
+        Objects.requireNonNull(code, "code cannot be null");
         var entity = findShortUrl(code);
-        String clicks = requireNonNullElse(redisTemplate.opsForValue().get(getClicksKey(code)), "0");
-        entity.setClicks(entity.getClicks() + Long.parseLong(clicks));
+        long redisClicks = parseClicks(redisTemplate.opsForValue().get(getClicksKey(code)));
+        entity.setClicks(safeZero(entity.getClicks()) + redisClicks);
         return mapper.toDto(entity);
     }
 
-    public List<UrlDto> getMyLinks(String ownerId) {
+    public List<UrlDto> getMyLinks(@NonNull String ownerId) {
+        Objects.requireNonNull(ownerId, "ownerId cannot be null");
         // Scan is acceptable at demo/portfolio scale; production would use a GSI
-        return urlRepository.findByOwnerId(ownerId).stream()
+        var results = urlRepository.findByOwnerId(ownerId);
+        if (results == null) {
+            return List.of();
+        }
+        return results.stream()
                 .map(entity -> {
-                    String clicksStr = requireNonNullElse(
-                            redisTemplate.opsForValue().get(getClicksKey(entity.getCode())), "0");
-                    entity.setClicks(entity.getClicks() + Long.parseLong(clicksStr));
+                    long redisClicks = parseClicks(redisTemplate.opsForValue().get(getClicksKey(entity.getCode())));
+                    entity.setClicks(safeZero(entity.getClicks()) + redisClicks);
                     return mapper.toDto(entity);
                 })
                 .toList();
     }
 
-    public void deleteLink(String code, String ownerId) {
+    private long parseClicks(String clicksValue) {
+        if (!hasText(clicksValue)) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(clicksValue);
+        } catch (NumberFormatException e) {
+            log.warn("Invalid click count in Redis for value '{}', defaulting to 0", clicksValue);
+            return 0L;
+        }
+    }
+
+    private long safeZero(Long maybeNull) {
+        return maybeNull == null ? 0L : maybeNull;
+    }
+
+    public void deleteLink(@NonNull String code, @NonNull String ownerId) {
+        Objects.requireNonNull(code, "code cannot be null");
+        Objects.requireNonNull(ownerId, "ownerId cannot be null");
+
         var entity = findShortUrl(code);
+
         if (!ownerId.equals(entity.getOwnerId())) {
             throw new com.kishanrao.shortener.infra.exception.UnauthorizedException(
                     "You do not own this link");
         }
+
         urlRepository.delete(code);
         redisTemplate.delete(getUrlCacheKey(code));
         redisTemplate.delete(getClicksKey(code));
@@ -150,7 +196,8 @@ public class UrlService {
     }
 
     @Async
-    public void incrementClickCount(String code) {
+    public void incrementClickCount(@NonNull String code) {
+        Objects.requireNonNull(code, "code cannot be null");
         redisTemplate.opsForValue().increment(getClicksKey(code), 1);
         redisTemplate.opsForSet().add(DIRTY_SET_KEY, code);
         redisTemplate.expire(DIRTY_SET_KEY, Duration.ofHours(24));
@@ -158,8 +205,11 @@ public class UrlService {
 
     // ──────────────────────────────────────────────────────────
 
-    private String resolveCode(String alias) {
+    private String resolveCode(@Nullable String alias) {
         if (hasText(alias)) {
+            if (alias.length() > 128) {
+                throw new IllegalArgumentException("Alias is too long; max 128 chars");
+            }
             if (urlRepository.findById(alias).isPresent()) {
                 throw new ConflictException("Alias already taken: " + alias);
             }
@@ -168,7 +218,8 @@ public class UrlService {
         return idGenerator.nextShortCode();
     }
 
-    private UrlEntity findShortUrl(String code) {
+    private UrlEntity findShortUrl(@NonNull String code) {
+        Objects.requireNonNull(code, "code cannot be null");
         return urlRepository.findById(code)
                 .orElseThrow(() -> new UrlNotFoundException("URL not found for code: " + code));
     }

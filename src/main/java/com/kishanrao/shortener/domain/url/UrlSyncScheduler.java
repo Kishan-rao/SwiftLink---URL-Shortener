@@ -63,7 +63,7 @@ class UrlSyncScheduler {
         // BUG FIX #3: Rename atomically to a "syncing" key before touching DynamoDB.
         // Any new clicks that arrive after this point land in the main key and will
         // be picked up by the next scheduler run — no data loss on crash.
-        Boolean renamed = redisTemplate.rename(clicksKey, syncingKey);
+        Boolean renamed = redisTemplate.renameIfAbsent(clicksKey, syncingKey);
         if (Boolean.FALSE.equals(renamed)) return; // key didn't exist, nothing to sync
 
         String oldValue = redisTemplate.opsForValue().get(syncingKey);

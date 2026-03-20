@@ -30,6 +30,9 @@ public class IdGenerator {
 
     @PostConstruct
     public void init() {
+        if (saltStr == null || saltStr.isBlank()) {
+            throw new IllegalStateException("app.salt must be configured and non-empty");
+        }
         this.salt = BigInteger.valueOf(saltStr.hashCode()).abs();
         log.info("IdGenerator initialized with Salt hash: [{}]", this.salt);
     }
