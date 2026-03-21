@@ -31,3 +31,16 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### IntelliJ IDEA ###
+.idea/
+
+### Logs & Temp ###
+*.log
+*.txt
+!README.md
+!project_description.md
+boot_run*.txt
+compose_up.txt
+mvn_log.txt
+
