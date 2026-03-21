@@ -1,0 +1,73 @@
+/* ============================================================
+   SwiftLink — custom.css
+   Custom styles, animations, and utilities beyond Tailwind.
+   ============================================================ */
+
+/* ----------------------------------------------------------
+   1. Fade-in animation
+   Used on the index result card and any general page reveals
+   ---------------------------------------------------------- */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+}
+
+/* ----------------------------------------------------------
+   2. Slide-up animation
+   Used on the stats page dashboard panel
+   ---------------------------------------------------------- */
+@keyframes slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-slide-up {
+    animation: slide-up 0.5s ease-out forwards;
+}
+
+/* ----------------------------------------------------------
+   3. Auth tab active state
+   Applied via JS when switching between Sign In / Register
+   ---------------------------------------------------------- */
+.auth-tab.active {
+    border-bottom: 2px solid #3b82f6;
+    color: #3b82f6;
+}
+
+/* ----------------------------------------------------------
+   4. Glassmorphism
+   Used on stats.html stat cards
+   ---------------------------------------------------------- */
+.glass {
+    background: rgba(31, 41, 55, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+/* ----------------------------------------------------------
+   5. Hover effects
+   Subtle lift effect for interactive cards
+   ---------------------------------------------------------- */
+.card-hover {
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-2px);
+}
